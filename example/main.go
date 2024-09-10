@@ -52,6 +52,7 @@ func main() {
 	printWeatherComparison(cityWeathers)
 	printDetailedWeatherInfo(cityWeathers)
 	printHistoricalData(client, cityWeathers[0], cities[0].Lat, cities[0].Lon)
+	printSeasonalForecast(client, cities[0].Name, cities[0].Lat, cities[0].Lon)
 }
 
 func getCityWeather(client omgo.Client, cityName string, lat, lon float64) (CityWeather, error) {
@@ -156,4 +157,48 @@ func getHistoricalData(client omgo.Client, lat, lon float64) (map[string]float64
 	}
 
 	return result, nil
+}
+
+func printSeasonalForecast(client omgo.Client, cityName string, lat, lon float64) {
+	fmt.Printf("\nSeasonal Forecast for %s (Next 3 months):\n", cityName)
+	seasonalData, err := getSeasonalForecast(client, lat, lon)
+	if err != nil {
+		log.Printf("Failed to get seasonal forecast for %s: %v", cityName, err)
+	} else {
+		fmt.Printf("Start Date: %s\n", seasonalData.StartDate.Format("2006-01-02"))
+		fmt.Printf("End Date: %s\n", seasonalData.EndDate.Format("2006-01-02"))
+		fmt.Printf("Average Max Temperature: %.1f°C\n", calculateAverage(seasonalData.Forecast.DailyMetrics["temperature_2m_max"]))
+		fmt.Printf("Average Min Temperature: %.1f°C\n", calculateAverage(seasonalData.Forecast.DailyMetrics["temperature_2m_min"]))
+	}
+}
+
+func getSeasonalForecast(client omgo.Client, lat, lon float64) (omgo.SeasonalForecast, error) {
+	loc, err := omgo.NewLocation(lat, lon)
+	if err != nil {
+		return omgo.SeasonalForecast{}, fmt.Errorf("failed to create location: %w", err)
+	}
+
+	opts := &omgo.Options{
+		SeasonalForecast: true,
+		ForecastMonths:   3,
+		DailyMetrics:     []string{"temperature_2m_max", "temperature_2m_min"},
+	}
+
+	seasonalForecast, err := client.GetSeasonalForecast(context.Background(), loc, opts)
+	if err != nil {
+		return omgo.SeasonalForecast{}, fmt.Errorf("failed to get seasonal forecast: %w", err)
+	}
+
+	return seasonalForecast, nil
+}
+
+func calculateAverage(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	sum := 0.0
+	for _, v := range values {
+		sum += v
+	}
+	return sum / float64(len(values))
 }
