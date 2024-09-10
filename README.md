@@ -201,6 +201,7 @@ func getHistoricalData(client omgo.Client, lat, lon float64) (map[string]float64
 }
 ```
 
+Output
 
 ```bash
 ➜  example git:(main) ✗ go run main.go
