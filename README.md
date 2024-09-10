@@ -246,6 +246,7 @@ func calculateAverage(values []float64) float64 {
 }
 ```
 
+Output
 
 ```bash
 ➜  example git:(main) ✗ go run main.go
