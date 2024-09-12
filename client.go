@@ -18,6 +18,7 @@ type Client struct {
 	APIKey      string
 	LastRequest time.Time
 	RateLimiter *rate.Limiter
+	Cache       *Cache
 }
 
 const DefaultUserAgent = "Open-Meteo_Go_Client"
@@ -29,6 +30,7 @@ func NewClient() (Client, error) {
 		UserAgent:   DefaultUserAgent,
 		Client:      http.DefaultClient,
 		RateLimiter: rate.NewLimiter(rate.Every(time.Second/10), 1), // 10 requests per second
+		Cache:       NewCache(),
 	}, nil
 }
 
@@ -122,13 +124,18 @@ func urlFromOptions(baseURL string, loc Location, opts *Options) string {
 }
 
 func (c *Client) Get(ctx context.Context, loc Location, opts *Options) ([]byte, error) {
-	if err := c.RateLimiter.Wait(ctx); err != nil {
-		return nil, ErrRateLimit{Message: "Rate limit exceeded"}
-	}
-
 	url := urlFromOptions(c.URL, loc, opts)
 	if c.APIKey != "" {
 		url = fmt.Sprintf("%s&apikey=%s", url, c.APIKey)
+	}
+
+	// Check cache first
+	if cachedData, found := c.Cache.Get(url); found {
+		return cachedData, nil
+	}
+
+	if err := c.RateLimiter.Wait(ctx); err != nil {
+		return nil, ErrRateLimit{Message: "Rate limit exceeded"}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -149,12 +156,20 @@ func (c *Client) Get(ctx context.Context, loc Location, opts *Options) ([]byte, 
 
 	if res.StatusCode != 200 {
 		body, _ := io.ReadAll(res.Body)
-		return nil, fmt.Errorf("%s - %s", res.Status, body)
+		return nil, ErrAPIResponse{StatusCode: res.StatusCode, Message: string(body)}
 	}
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
+
+	// Cache the response for 5 minutes
+	c.Cache.Set(url, body, 5*time.Minute)
+
 	return body, nil
+}
+
+func (c *Client) ClearCache() {
+	c.Cache = NewCache()
 }
