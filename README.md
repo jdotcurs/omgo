@@ -332,3 +332,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Thanks to [Open-Meteo](https://open-meteo.com) for providing the weather API
 
 For more detailed information on how to use this forked version of the Open-Meteo-Go client, please refer to the full documentation in the repository.
+
+## Future work
+
+I will continue to add features from the main Open Meteo repo to the Go SDK to make it more feature rich and useful.
