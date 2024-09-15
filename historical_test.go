@@ -22,19 +22,32 @@ func TestGetHistoricalData(t *testing.T) {
 	opts := &omgo.Options{
 		StartDate:     startDate,
 		EndDate:       endDate,
-		HourlyMetrics: []string{"temperature_2m", "precipitation"},
-		DailyMetrics:  []string{"temperature_2m_max", "temperature_2m_min"},
+		HourlyMetrics: []string{"temperature_2m", "precipitation", "wind_speed_10m"},
+		DailyMetrics:  []string{"temperature_2m_max", "temperature_2m_min", "precipitation_sum"},
 	}
 
 	historicalData, err := c.GetHistoricalData(context.Background(), loc, opts)
 	require.NoError(t, err)
 
+	// Test Forecast data
+	require.NotEmpty(t, historicalData.Forecast.HourlyTimes)
+	require.NotEmpty(t, historicalData.Forecast.HourlyMetrics["temperature_2m"])
+	require.NotEmpty(t, historicalData.Forecast.DailyTimes)
+	require.NotEmpty(t, historicalData.Forecast.DailyMetrics["temperature_2m_max"])
+
+	// Test HourlyData
+	require.Equal(t, len(historicalData.HourlyData.Time), len(historicalData.HourlyData.Temperature2m))
+	require.Equal(t, len(historicalData.HourlyData.Time), len(historicalData.HourlyData.Precipitation))
+	require.Equal(t, len(historicalData.HourlyData.Time), len(historicalData.HourlyData.WindSpeed10m))
+
+	// Test DailyData
+	require.Equal(t, len(historicalData.DailyData.Time), len(historicalData.DailyData.Temperature2mMax))
+	require.Equal(t, len(historicalData.DailyData.Time), len(historicalData.DailyData.Temperature2mMin))
+	require.Equal(t, len(historicalData.DailyData.Time), len(historicalData.DailyData.PrecipitationSum))
+
+	// Test start and end dates
 	require.Equal(t, startDate, historicalData.StartDate.Format("2006-01-02"))
 	require.Equal(t, endDate, historicalData.EndDate.Format("2006-01-02"))
-	require.NotEmpty(t, historicalData.Forecast.HourlyMetrics["temperature_2m"])
-	require.NotEmpty(t, historicalData.Forecast.HourlyMetrics["precipitation"])
-	require.NotEmpty(t, historicalData.Forecast.DailyMetrics["temperature_2m_max"])
-	require.NotEmpty(t, historicalData.Forecast.DailyMetrics["temperature_2m_min"])
 }
 
 func TestGetHistoricalData_InvalidDates(t *testing.T) {

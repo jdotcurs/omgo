@@ -18,6 +18,8 @@ type CityWeather struct {
 	AirQuality       float64
 	CloudCover       float64
 	PrecipitationSum float64
+	HistoricalData   map[string]float64
+	SeasonalForecast omgo.SeasonalForecast
 }
 
 func main() {
@@ -51,8 +53,8 @@ func main() {
 
 	printWeatherComparison(cityWeathers)
 	printDetailedWeatherInfo(cityWeathers)
-	printHistoricalData(client, cityWeathers[0], cities[0].Lat, cities[0].Lon)
-	printSeasonalForecast(client, cities[0].Name, cities[0].Lat, cities[0].Lon)
+	printSeasonalForecast(cityWeathers)
+	printHistoricalData(cityWeathers)
 }
 
 func getCityWeather(client omgo.Client, cityName string, lat, lon float64) (CityWeather, error) {
@@ -81,6 +83,16 @@ func getCityWeather(client omgo.Client, cityName string, lat, lon float64) (City
 		return CityWeather{}, fmt.Errorf("failed to get air quality data: %w", err)
 	}
 
+	historicalData, err := getHistoricalData(client, lat, lon)
+	if err != nil {
+		log.Printf("Failed to get historical data for %s: %v", cityName, err)
+	}
+
+	seasonalForecast, err := getSeasonalForecast(client, lat, lon)
+	if err != nil {
+		log.Printf("Failed to get seasonal forecast for %s: %v", cityName, err)
+	}
+
 	return CityWeather{
 		Name:             cityName,
 		Temperature:      forecast.CurrentWeather.Temperature,
@@ -89,6 +101,8 @@ func getCityWeather(client omgo.Client, cityName string, lat, lon float64) (City
 		AirQuality:       airQuality.PM2_5,
 		CloudCover:       forecast.HourlyMetrics["cloudcover"][0],
 		PrecipitationSum: forecast.DailyMetrics["precipitation_sum"][0],
+		HistoricalData:   historicalData,
+		SeasonalForecast: seasonalForecast,
 	}, nil
 }
 
@@ -119,14 +133,34 @@ func printDetailedWeatherInfo(cityWeathers []CityWeather) {
 	}
 }
 
-func printHistoricalData(client omgo.Client, city CityWeather, lat, lon float64) {
-	fmt.Printf("\nHistorical Data for %s (Last 7 days):\n", city.Name)
-	historicalData, err := getHistoricalData(client, lat, lon)
-	if err != nil {
-		log.Printf("Failed to get historical data for %s: %v", city.Name, err)
-	} else {
-		for date, temp := range historicalData {
-			fmt.Printf("%s: %.1f°C\n", date, temp)
+func printHistoricalData(cityWeathers []CityWeather) {
+	for _, cw := range cityWeathers {
+		if cw.Name == "London" {
+			fmt.Printf("\nHistorical Data for London (Last 30 days):\n")
+			fmt.Println("==========================================")
+
+			// Convert map to slice of key-value pairs for sorting
+			var sortedData []struct {
+				Date string
+				Temp float64
+			}
+			for date, temp := range cw.HistoricalData {
+				sortedData = append(sortedData, struct {
+					Date string
+					Temp float64
+				}{date, temp})
+			}
+
+			// Sort the data by date
+			sort.Slice(sortedData, func(i, j int) bool {
+				return sortedData[i].Date < sortedData[j].Date
+			})
+
+			// Print sorted data
+			for _, item := range sortedData {
+				fmt.Printf("%s: %.1f°C\n", item.Date, item.Temp)
+			}
+			break
 		}
 	}
 }
@@ -138,12 +172,12 @@ func getHistoricalData(client omgo.Client, lat, lon float64) (map[string]float64
 	}
 
 	endDate := time.Now().AddDate(0, 0, -1)
-	startDate := endDate.AddDate(0, 0, -6)
+	startDate := endDate.AddDate(0, 0, -30)
 
 	opts := &omgo.Options{
 		StartDate:    startDate.Format("2006-01-02"),
 		EndDate:      endDate.Format("2006-01-02"),
-		DailyMetrics: []string{"temperature_2m_max"},
+		DailyMetrics: []string{"temperature_2m_max", "temperature_2m_min"},
 	}
 
 	historicalData, err := client.GetHistoricalData(context.Background(), loc, opts)
@@ -152,23 +186,21 @@ func getHistoricalData(client omgo.Client, lat, lon float64) (map[string]float64
 	}
 
 	result := make(map[string]float64)
-	for i, date := range historicalData.Forecast.DailyTimes {
-		result[date.Format("2006-01-02")] = historicalData.Forecast.DailyMetrics["temperature_2m_max"][i]
+	for i, date := range historicalData.DailyData.Time {
+		avgTemp := (historicalData.DailyData.Temperature2mMax[i] + historicalData.DailyData.Temperature2mMin[i]) / 2
+		result[date.Format("2006-01-02")] = avgTemp
 	}
 
 	return result, nil
 }
 
-func printSeasonalForecast(client omgo.Client, cityName string, lat, lon float64) {
-	fmt.Printf("\nSeasonal Forecast for %s (Next 3 months):\n", cityName)
-	seasonalData, err := getSeasonalForecast(client, lat, lon)
-	if err != nil {
-		log.Printf("Failed to get seasonal forecast for %s: %v", cityName, err)
-	} else {
-		fmt.Printf("Start Date: %s\n", seasonalData.StartDate.Format("2006-01-02"))
-		fmt.Printf("End Date: %s\n", seasonalData.EndDate.Format("2006-01-02"))
-		fmt.Printf("Average Max Temperature: %.1f°C\n", calculateAverage(seasonalData.Forecast.DailyMetrics["temperature_2m_max"]))
-		fmt.Printf("Average Min Temperature: %.1f°C\n", calculateAverage(seasonalData.Forecast.DailyMetrics["temperature_2m_min"]))
+func printSeasonalForecast(cityWeathers []CityWeather) {
+	for _, cw := range cityWeathers {
+		fmt.Printf("\nSeasonal Forecast for %s (Next 3 months):\n", cw.Name)
+		fmt.Printf("Start Date: %s\n", cw.SeasonalForecast.StartDate.Format("2006-01-02"))
+		fmt.Printf("End Date: %s\n", cw.SeasonalForecast.EndDate.Format("2006-01-02"))
+		fmt.Printf("Average Max Temperature: %.1f°C\n", calculateAverage(cw.SeasonalForecast.Forecast.DailyMetrics["temperature_2m_max"]))
+		fmt.Printf("Average Min Temperature: %.1f°C\n", calculateAverage(cw.SeasonalForecast.Forecast.DailyMetrics["temperature_2m_min"]))
 	}
 }
 

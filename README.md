@@ -10,18 +10,23 @@ This is a fork of the [hectormalot/omgo](https://github.com/hectormalot/omgo) re
 
 We would love to potentially merge these changes back into the original repository in the future.
 
-## New Features in this Fork
+## Features
 
+- Current weather data retrieval
+- Weather forecasts
 - Historical weather data retrieval
 - Air quality information
-- Satellite data support
 - Seasonal forecasts
-- Enhanced customization options
-- Rate limiting support
+- Customizable options for data retrieval
+- Support for multiple locations
+- Temperature unit conversion (Celsius, Fahrenheit)
+- Wind speed unit options (km/h, m/s, mph, knots)
+- Precipitation unit options (mm, inch)
+- Timezone support
 
 ## Installation
 
-To install this forked version of Open-Meteo-Go, use the following command:
+To install the Open-Meteo-Go client, use the following command:
 
 ```bash
 go get github.com/jdotcurs/omgo
@@ -45,21 +50,60 @@ client, err := omgo.NewClient()
 if err != nil {
 log.Fatalf("Failed to create client: %v", err)
 }
-loc, err := omgo.NewLocation(52.3738, 4.8910) // Amsterdam
+loc, err := omgo.NewLocation(52.52, 13.41) // Berlin
 if err != nil {
 log.Fatalf("Failed to create location: %v", err)
 }
-weather, err := client.CurrentWeather(context.Background(), loc, nil)
-if err != nil {
-log.Fatalf("Failed to get current weather: %v", err)
+opts := &omgo.Options{
+TemperatureUnit: "celsius",
+WindspeedUnit: "kmh",
+DailyMetrics: []string{"temperature_2m_max", "temperature_2m_min"},
 }
-fmt.Printf("Current temperature in Amsterdam: %.1f°C\n", weather.Temperature)
+forecast, err := client.Forecast(context.Background(), loc, opts)
+if err != nil {
+log.Fatalf("Failed to get forecast: %v", err)
+}
+fmt.Printf("Current temperature in Berlin: %.1f°C\n", forecast.CurrentWeather.Temperature)
+fmt.Printf("Max temperature tomorrow: %.1f°C\n", forecast.DailyMetrics["temperature_2m_max"][1])
+fmt.Printf("Min temperature tomorrow: %.1f°C\n", forecast.DailyMetrics["temperature_2m_min"][1])
 }
 ```
 
 ## Advanced Usage
 
-For more advanced usage examples, including forecasts, historical data, air quality, and satellite data, please refer to the `example/main.go` file in this repository.
+To retrieve historical weather data:
+
+```go
+endDate := time.Now().AddDate(0, 0, -1)
+startDate := endDate.AddDate(0, 0, -30)
+opts := &omgo.Options{
+StartDate: startDate.Format("2006-01-02"),
+EndDate: endDate.Format("2006-01-02"),
+DailyMetrics: []string{"temperature_2m_max", "temperature_2m_min"},
+}
+historicalData, err := client.GetHistoricalData(context.Background(), loc, opts)
+if err != nil {
+log.Fatalf("Failed to get historical data: %v", err)
+}
+// Process historical data
+```
+
+To get a seasonal forecast:
+
+```go
+opts := &omgo.Options{
+SeasonalForecast: true,
+ForecastMonths: 3,
+DailyMetrics: []string{"temperature_2m_max", "temperature_2m_min"},
+}
+seasonalForecast, err := client.GetSeasonalForecast(context.Background(), loc, opts)
+if err != nil {
+log.Fatalf("Failed to get seasonal forecast: %v", err)
+}
+// Process seasonal forecast data
+```
+
+For advanced usage examples, including forecasts, historical data, satellite data and air quality, please refer to the [`example/main.go`](example/main.go) file in this repository.
 
 ```go
 func main() {
