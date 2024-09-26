@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/hectormalot/omgo"
+	"github.com/jdotcurs/omgo"
 )
 
 type CityWeather struct {
