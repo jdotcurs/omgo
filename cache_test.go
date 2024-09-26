@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hectormalot/omgo"
+	"github.com/jdotcurs/omgo"
 	"github.com/stretchr/testify/require"
 )
 
